@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyWatch – Focus Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+  :root {
+    --bg:#0a0c10; --surface:#111318; --border:#1e2230;
+    --accent:#00e5a0; --accent2:#ff6b35; --text:#e8eaf0; --muted:#5a6070; --radius:16px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;padding:32px 16px 64px;overflow-x:hidden;}
+  body::before{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+    width:600px;height:400px;background:radial-gradient(ellipse at center,rgba(0,229,160,.07) 0%,transparent 70%);
+    pointer-events:none;z-index:0;}
+  header{text-align:center;margin-bottom:40px;position:relative;z-index:1;}
+  header .logo{font-size:11px;letter-spacing:6px;text-transform:uppercase;color:var(--accent);
+    font-family:'Space Mono',monospace;margin-bottom:8px;}
+  header h1{font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:-1px;line-height:1;}
+  header h1 span{color:var(--accent);}
+  header p{margin-top:10px;color:var(--muted);font-size:14px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:28px 24px;width:100%;max-width:560px;position:relative;z-index:1;margin-bottom:20px;}
+  .card-label{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);
+    font-family:'Space Mono',monospace;margin-bottom:16px;}
+  /* CONFIG NOTICE */
+  #config-notice{background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.3);border-radius:10px;
+    padding:18px;margin-bottom:20px;max-width:560px;width:100%;position:relative;z-index:1;display:none;}
+  #config-notice h3{color:var(--accent2);font-size:14px;margin-bottom:8px;}
+  #config-notice p{font-size:12px;color:var(--muted);line-height:1.7;}
+  #config-notice code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;
+    font-family:'Space Mono',monospace;font-size:11px;color:var(--text);}
+  /* SYNC STATUS */
+  #sync-status{position:fixed;bottom:20px;right:20px;z-index:200;font-family:'Space Mono',monospace;
+    font-size:11px;padding:8px 14px;border-radius:99px;display:flex;align-items:center;gap:8px;
+    transition:all .3s;}
+  #sync-status.syncing{background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);color:#ffd700;}
+  #sync-status.synced{background:rgba(0,229,160,.12);border:1px solid rgba(0,229,160,.25);color:var(--accent);}
+  #sync-status.error{background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.3);color:var(--accent2);}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  /* NAME GATE */
+  #name-gate{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  #name-gate h2{font-size:1.4rem;font-weight:800;}
+  #name-gate p{color:var(--muted);font-size:13px;text-align:center;}
+  /* INPUTS */
+  .sw-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);font-family:'Syne',sans-serif;font-size:15px;padding:12px 16px;
+    outline:none;transition:border-color .2s;margin-bottom:12px;}
+  .sw-input:focus{border-color:var(--accent);}
+  .sw-input::placeholder{color:var(--muted);}
+  #student-name-input{text-align:center;font-size:16px;}
+  /* BUTTONS */
+  .btn{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;
+    padding:12px 24px;border-radius:8px;border:none;cursor:pointer;transition:all .2s ease;
+    display:inline-flex;align-items:center;gap:8px;}
+  .btn-primary{background:var(--accent);color:#000;font-weight:700;}
+  .btn-primary:hover{background:#00ffb3;transform:translateY(-1px);}
+  .btn-primary:disabled{background:#1e2230;color:var(--muted);cursor:not-allowed;transform:none;}
+  .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border);}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-danger{background:transparent;color:var(--accent2);border:1px solid var(--accent2);}
+  .btn-danger:hover{background:var(--accent2);color:#fff;}
+  /* CAMERA */
+  #video-preview,#photo-preview{width:100%;max-height:280px;object-fit:cover;border-radius:10px;
+    border:2px solid var(--border);background:#000;display:block;}
+  #photo-preview{display:none;}
+  .cam-controls{display:flex;gap:12px;margin-top:16px;justify-content:center;flex-wrap:wrap;}
+  #cam-error{display:none;background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.3);
+    border-radius:8px;padding:14px;color:var(--accent2);font-size:13px;text-align:center;margin-top:12px;}
+  /* TIMER */
+  #timer-card{display:none;}
+  .timer-ring-wrap{display:flex;justify-content:center;margin:8px 0 20px;}
+  .timer-ring-wrap svg{transform:rotate(-90deg);}
+  .ring-bg{fill:none;stroke:var(--border);stroke-width:6;}
+  .ring-progress{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round;
+    transition:stroke-dashoffset 1s linear,stroke .5s;}
+  .ring-text{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;fill:var(--text);
+    dominant-baseline:middle;text-anchor:middle;}
+  .ring-sublabel{font-family:'Syne',sans-serif;font-size:11px;fill:var(--muted);dominant-baseline:middle;
+    text-anchor:middle;letter-spacing:2px;text-transform:uppercase;}
+  .timer-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .meta-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+  .meta-box .val{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);}
+  .meta-box .lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:4px;}
+  .progress-track{width:100%;height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:20px;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#00b8ff);border-radius:99px;width:0%;transition:width 1s linear;}
+  .subject-thumb{display:flex;align-items:center;gap:14px;background:var(--bg);border:1px solid var(--border);
+    border-radius:10px;padding:12px;margin-bottom:20px;}
+  .subject-thumb img{width:60px;height:60px;object-fit:cover;border-radius:6px;}
+  .subject-thumb .info .name{font-weight:600;font-size:15px;}
+  .subject-thumb .info .student-tag{font-size:12px;color:var(--accent);font-family:'Space Mono',monospace;margin-top:2px;}
+  .subject-thumb .info .started{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px;}
+  /* GREETING */
+  #greeting-banner{display:none;width:100%;max-width:560px;background:rgba(0,229,160,.08);
+    border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:12px 18px;margin-bottom:16px;
+    font-family:'Space Mono',monospace;font-size:13px;color:var(--accent);position:relative;
+    z-index:1;align-items:center;gap:10px;}
+  /* DONE OVERLAY */
+  #done-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;
+    flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;}
+  #done-overlay.show{display:flex;}
+  .done-check{width:100px;height:100px;border-radius:50%;background:var(--accent);display:flex;
+    align-items:center;justify-content:center;margin-bottom:28px;animation:popIn .5s cubic-bezier(.34,1.56,.64,1);}
+  .done-check svg{width:50px;height:50px;}
+  @keyframes popIn{from{transform:scale(0);opacity:0;}to{transform:scale(1);opacity:1;}}
+  #done-overlay h2{font-size:clamp(2rem,8vw,3.5rem);font-weight:800;color:var(--accent);letter-spacing:-1px;margin-bottom:12px;}
+  #done-overlay p{color:var(--muted);font-size:15px;max-width:340px;line-height:1.6;margin-bottom:8px;}
+  #done-session-info{font-family:'Space Mono',monospace;font-size:13px;color:var(--text);margin-bottom:32px;
+    background:var(--surface);padding:14px 24px;border-radius:10px;border:1px solid var(--border);
+    margin-top:16px;line-height:1.8;}
+  /* HISTORY */
+  #history-card{display:none;}
+  .session-item{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .session-item:last-child{border-bottom:none;}
+  .session-item img{width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;}
+  .session-item .si-info{flex:1;}
+  .session-item .si-name{font-weight:600;font-size:14px;}
+  .session-item .si-meta{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:2px;}
+  .si-badge{font-size:10px;font-family:'Space Mono',monospace;padding:4px 10px;border-radius:99px;
+    background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.25);white-space:nowrap;}
+  .section-title{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);
+    font-family:'Space Mono',monospace;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  canvas{display:none;}
+  @media(max-width:400px){.cam-controls{flex-direction:column;}.btn{width:100%;justify-content:center;}}
+</style>
+</head>
+<body>
+
+<div id="sync-status" class="synced"><div class="sync-dot"></div><span id="sync-label">Offline</span></div>
+
+<header>
+  <div class="logo">Kumasi Tech &nbsp;·&nbsp; StudyWatch</div>
+  <h1>Study<span>Watch</span></h1>
+  <p>Snap your material · Track 4 hours · Stay accountable</p>
+</header>
+
+<!-- FIREBASE CONFIG NOTICE (shown until configured) -->
+<div id="config-notice">
+  <h3>⚙️ Firebase Setup Required</h3>
+  <p>To sync across devices, paste your Firebase config into the <code>FIREBASE_CONFIG</code> object at the top of this file's &lt;script&gt; section. See the <strong>SETUP GUIDE</strong> below for step-by-step instructions.</p>
+</div>
+
+<!-- NAME GATE -->
+<div class="card" id="name-card">
+  <div id="name-gate">
+    <div class="card-label" style="margin-bottom:0">Who is studying?</div>
+    <h2>Enter Your Name</h2>
+    <p>Your name and study activity will be synced for your lecturer to review.</p>
+    <input type="text" id="student-name-input" class="sw-input" placeholder="e.g. Kofi Mensah" maxlength="60" autocomplete="name">
+    <button class="btn btn-primary" id="btn-enter-name" style="width:100%;justify-content:center" disabled>Continue →</button>
+  </div>
+</div>
+
+<!-- GREETING -->
+<div id="greeting-banner">👋 <span id="greeting-text"></span></div>
+
+<!-- SETUP CARD -->
+<div class="card" id="setup-card" style="display:none">
+  <div class="card-label">Step 01 — Capture your study material</div>
+  <video id="video-preview" autoplay playsinline muted></video>
+  <img id="photo-preview" alt="Study material">
+  <canvas id="snap-canvas"></canvas>
+  <div id="cam-error">⚠ Camera access denied. Please allow permission and reload.</div>
+  <div class="cam-controls" id="cam-controls-before">
+    <button class="btn btn-primary" id="btn-snap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M3 9V7a2 2 0 012-2h2l2-3h6l2 3h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+      Take Photo
+    </button>
+  </div>
+  <div class="cam-controls" id="cam-controls-after" style="display:none">
+    <button class="btn btn-secondary" id="btn-retake">↩ Retake</button>
+  </div>
+  <div id="subject-wrap" style="margin-top:18px;display:none">
+    <div class="card-label" style="margin-bottom:8px">Step 02 — What are you studying?</div>
+    <input type="text" id="subject-input" class="sw-input" placeholder="e.g. Introduction to Programming – Chapter 4" maxlength="80">
+    <button class="btn btn-primary" id="btn-start" style="width:100%;justify-content:center" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Start 4-Hour Session
+    </button>
+  </div>
+</div>
+
+<!-- TIMER -->
+<div class="card" id="timer-card">
+  <div class="card-label">Active Session</div>
+  <div class="subject-thumb">
+    <img id="thumb-img" src="" alt="">
+    <div class="info">
+      <div class="name" id="thumb-name"></div>
+      <div class="student-tag" id="thumb-student"></div>
+      <div class="started" id="thumb-started"></div>
+    </div>
+  </div>
+  <div class="timer-ring-wrap">
+    <svg width="200" height="200" viewBox="0 0 200 200">
+      <circle class="ring-bg" cx="100" cy="100" r="88"/>
+      <circle class="ring-progress" id="ring" cx="100" cy="100" r="88" stroke-dasharray="552.9" stroke-dashoffset="552.9"/>
+      <text class="ring-text" x="100" y="96" id="ring-time">04:00:00</text>
+      <text class="ring-sublabel" x="100" y="118">remaining</text>
+    </svg>
+  </div>
+  <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
+  <div class="timer-meta">
+    <div class="meta-box"><div class="val" id="elapsed-val">00:00</div><div class="lbl">Elapsed</div></div>
+    <div class="meta-box"><div class="val" id="pct-val">0%</div><div class="lbl">Complete</div></div>
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn btn-secondary" id="btn-pause" style="flex:1;justify-content:center">⏸ Pause</button>
+    <button class="btn btn-danger" id="btn-stop" style="flex:1;justify-content:center">✕ End Session</button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="card" id="history-card">
+  <div class="section-title">My Sessions</div>
+  <div id="history-list"></div>
+</div>
+
+<!-- DONE OVERLAY -->
+<div id="done-overlay">
+  <div class="done-check">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <h2>Session Complete!</h2>
+  <p>You've finished your full 4-hour study session. Great discipline!</p>
+  <div id="done-session-info"></div>
+  <button class="btn btn-primary" id="btn-new-session" style="min-width:200px;justify-content:center">Start New Session</button>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getDatabase, ref, push, set, onValue, serverTimestamp }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+  // ════════════════════════════════════════════════════
+  //  🔥 PASTE YOUR FIREBASE CONFIG HERE
+  //  Steps: console.firebase.google.com → New project
+  //  → Realtime Database → Create → Start in test mode
+  //  → Project Settings → Web App → Copy config below
+  // ════════════════════════════════════════════════════
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAR9y_dXTo7U3I3lWGHpzTvgKuCrBswf48",
+    authDomain: "studywatch-294d5.firebaseapp.com",
+    databaseURL: "https://studywatch-294d5-default-rtdb.firebaseio.com",
+    projectId: "studywatch-294d5",
+    storageBucket: "studywatch-294d5.firebasestorage.app",
+    messagingSenderId: "301758589461",
+    appId: "1:301758589461:web:6f2a1e43b98973a0e6fc1c",
+    measurementId: "G-HTM98N77WL"
+  };
+  // ════════════════════════════════════════════════════
+
+  const TOTAL_SECONDS = 4 * 60 * 60;
+  const CIRCUMFERENCE = 2 * Math.PI * 88;
+
+  let db = null, sessionRef = null;
+  let stream = null, photoDataURL = null;
+  let subjectName = '', studentName = '';
+  let timerInterval = null, remaining = TOTAL_SECONDS, elapsed = 0;
+  let paused = false, sessionStart = null, sessionId = null;
+  let mySessions = JSON.parse(localStorage.getItem('sw_my_sessions') || '[]');
+
+  // ── Firebase init ──
+  function initFirebase() {
+    if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') {
+      document.getElementById('config-notice').style.display = 'block';
+      setSyncStatus('error', 'Not configured');
+      return false;
+    }
+    try {
+      const app = initializeApp(FIREBASE_CONFIG);
+      db = getDatabase(app);
+      setSyncStatus('synced', 'Connected');
+      return true;
+    } catch(e) {
+      setSyncStatus('error', 'DB Error');
+      return false;
+    }
+  }
+
+  function setSyncStatus(state, label) {
+    const el = document.getElementById('sync-status');
+    el.className = 'synced'; // reset
+    el.classList.add(state);
+    document.getElementById('sync-label').textContent = label;
+  }
+
+  async function pushEvent(type, extra = {}) {
+    if (!db) return;
+    setSyncStatus('syncing', 'Syncing…');
+    try {
+      const eventsRef = ref(db, 'events');
+      await push(eventsRef, {
+        type,
+        student: studentName,
+        subject: subjectName || '',
+        sessionId: sessionId || '',
+        elapsed: elapsed || 0,
+        timestamp: serverTimestamp(),
+        ...extra
+      });
+      setSyncStatus('synced', 'Synced ✓');
+    } catch(e) {
+      setSyncStatus('error', 'Sync failed');
+      // Fallback to localStorage
+    }
+  }
+
+  async function pushSessionUpdate(completed) {
+    if (!db || !sessionId) return;
+    setSyncStatus('syncing', 'Saving…');
+    try {
+      const sRef = ref(db, `sessions/${sessionId}`);
+      await set(sRef, {
+        student: studentName,
+        subject: subjectName,
+        sessionId,
+        startTime: sessionStart.toISOString(),
+        elapsed,
+        completed,
+        photo: photoDataURL || '',
+        lastUpdated: serverTimestamp()
+      });
+      setSyncStatus('synced', 'Saved ✓');
+    } catch(e) {
+      setSyncStatus('error', 'Save failed');
+    }
+  }
+
+  // ── DOM refs ──
+  const nameCard       = document.getElementById('name-card');
+  const nameInput      = document.getElementById('student-name-input');
+  const btnEnterName   = document.getElementById('btn-enter-name');
+  const greetingBanner = document.getElementById('greeting-banner');
+  const greetingText   = document.getElementById('greeting-text');
+  const setupCard      = document.getElementById('setup-card');
+  const video          = document.getElementById('video-preview');
+  const photoImg       = document.getElementById('photo-preview');
+  const canvas         = document.getElementById('snap-canvas');
+  const btnSnap        = document.getElementById('btn-snap');
+  const btnRetake      = document.getElementById('btn-retake');
+  const beforeCtrl     = document.getElementById('cam-controls-before');
+  const afterCtrl      = document.getElementById('cam-controls-after');
+  const subjectWrap    = document.getElementById('subject-wrap');
+  const subjectIn      = document.getElementById('subject-input');
+  const btnStart       = document.getElementById('btn-start');
+  const timerCard      = document.getElementById('timer-card');
+  const ringEl         = document.getElementById('ring');
+  const ringTime       = document.getElementById('ring-time');
+  const progFill       = document.getElementById('prog-fill');
+  const elapsedVal     = document.getElementById('elapsed-val');
+  const pctVal         = document.getElementById('pct-val');
+  const btnPause       = document.getElementById('btn-pause');
+  const btnStop        = document.getElementById('btn-stop');
+  const doneOverlay    = document.getElementById('done-overlay');
+  const doneInfo       = document.getElementById('done-session-info');
+  const btnNew         = document.getElementById('btn-new-session');
+  const thumbImg       = document.getElementById('thumb-img');
+  const thumbName      = document.getElementById('thumb-name');
+  const thumbStudent   = document.getElementById('thumb-student');
+  const thumbStart     = document.getElementById('thumb-started');
+  const camError       = document.getElementById('cam-error');
+
+  // ── Name gate ──
+  nameInput.addEventListener('input', () => { btnEnterName.disabled = nameInput.value.trim().length < 2; });
+  btnEnterName.addEventListener('click', async () => {
+    studentName = nameInput.value.trim();
+    await pushEvent('open');
+    greetingText.textContent = `Welcome, ${studentName}! Ready to study?`;
+    greetingBanner.style.display = 'flex';
+    nameCard.style.display = 'none';
+    setupCard.style.display = 'block';
+    startCamera();
+    renderHistory();
+  });
+
+  // ── Camera ──
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+    } catch(e) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+      } catch(err) { camError.style.display = 'block'; btnSnap.disabled = true; }
+    }
+  }
+
+  btnSnap.addEventListener('click', () => {
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    photoDataURL = canvas.toDataURL('image/jpeg', 0.6);
+    photoImg.src = photoDataURL;
+    photoImg.style.display = 'block';
+    video.style.display = 'none';
+    beforeCtrl.style.display = 'none';
+    afterCtrl.style.display = 'flex';
+    subjectWrap.style.display = 'block';
+    subjectIn.focus();
+  });
+
+  btnRetake.addEventListener('click', () => {
+    photoImg.style.display = 'none'; video.style.display = 'block';
+    beforeCtrl.style.display = 'flex'; afterCtrl.style.display = 'none';
+    subjectWrap.style.display = 'none'; subjectIn.value = '';
+    btnStart.disabled = true; photoDataURL = null;
+  });
+
+  subjectIn.addEventListener('input', () => { btnStart.disabled = subjectIn.value.trim().length < 2; });
+
+  // ── Start session ──
+  btnStart.addEventListener('click', async () => {
+    subjectName = subjectIn.value.trim();
+    sessionStart = new Date();
+    remaining = TOTAL_SECONDS; elapsed = 0; paused = false;
+    sessionId = Date.now().toString();
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    thumbImg.src = photoDataURL;
+    thumbName.textContent = subjectName;
+    thumbStudent.textContent = '👤 ' + studentName;
+    thumbStart.textContent = 'Started ' + sessionStart.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    setupCard.style.display = 'none';
+    greetingBanner.style.display = 'none';
+    timerCard.style.display = 'block';
+    await pushEvent('start');
+    await pushSessionUpdate(false);
+    updateTimerUI();
+    timerInterval = setInterval(tick, 1000);
+  });
+
+  function tick() {
+    if (paused) return;
+    remaining--; elapsed++;
+    if (elapsed % 120 === 0) pushSessionUpdate(false); // sync every 2 min
+    updateTimerUI();
+    if (remaining <= 0) finishSession();
+  }
+
+  function updateTimerUI() {
+    const r = Math.max(0, remaining);
+    ringEl.style.strokeDashoffset = CIRCUMFERENCE * (r / TOTAL_SECONDS);
+    ringEl.style.stroke = r < 600 ? '#ff6b35' : r < 1800 ? '#ffd700' : 'var(--accent)';
+    ringTime.textContent = formatHMS(r);
+    const pct = ((TOTAL_SECONDS - r) / TOTAL_SECONDS) * 100;
+    progFill.style.width = pct + '%';
+    elapsedVal.textContent = formatHM(elapsed);
+    pctVal.textContent = Math.floor(pct) + '%';
+  }
+
+  btnPause.addEventListener('click', async () => {
+    paused = !paused;
+    btnPause.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    btnPause.style.color = paused ? 'var(--accent)' : '';
+    btnPause.style.borderColor = paused ? 'var(--accent)' : '';
+    await pushEvent(paused ? 'pause' : 'resume');
+  });
+
+  btnStop.addEventListener('click', async () => {
+    if (!confirm('End session early?')) return;
+    clearInterval(timerInterval);
+    await pushEvent('incomplete');
+    await pushSessionUpdate(false);
+    saveLocal(false);
+    resetToSetup();
+  });
+
+  async function finishSession() {
+    clearInterval(timerInterval);
+    updateTimerUI();
+    await pushEvent('complete');
+    await pushSessionUpdate(true);
+    saveLocal(true);
+    showDone();
+  }
+
+  function showDone() {
+    doneInfo.innerHTML = `📚 ${subjectName}<br>👤 ${studentName}<br>📅 ${sessionStart.toLocaleDateString()} · 4 hrs 00 min`;
+    doneOverlay.classList.add('show');
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, .15, .3].forEach(t => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = t===0?523:t===.15?659:784;
+        g.gain.setValueAtTime(.2, ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+t+.4);
+        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+.5);
+      });
+    } catch(e) {}
+  }
+
+  btnNew.addEventListener('click', () => { doneOverlay.classList.remove('show'); resetToSetup(); });
+
+  function resetToSetup() {
+    timerCard.style.display = 'none';
+    setupCard.style.display = 'block';
+    greetingBanner.style.display = 'flex';
+    photoImg.style.display = 'none'; video.style.display = 'block';
+    beforeCtrl.style.display = 'flex'; afterCtrl.style.display = 'none';
+    subjectWrap.style.display = 'none'; subjectIn.value = '';
+    btnStart.disabled = true; btnPause.textContent = '⏸ Pause';
+    paused = false; photoDataURL = null;
+    startCamera(); renderHistory();
+  }
+
+  function saveLocal(completed) {
+    mySessions.unshift({ subject: subjectName, photo: photoDataURL,
+      date: sessionStart.toLocaleDateString(),
+      time: sessionStart.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+      elapsed, completed });
+    if (mySessions.length > 20) mySessions.pop();
+    localStorage.setItem('sw_my_sessions', JSON.stringify(mySessions));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const hc = document.getElementById('history-card');
+    if (!mySessions.length) { hc.style.display = 'none'; return; }
+    hc.style.display = 'block';
+    document.getElementById('history-list').innerHTML = mySessions.map(s => `
+      <div class="session-item">
+        <img src="${s.photo}" alt="">
+        <div class="si-info">
+          <div class="si-name">${s.subject}</div>
+          <div class="si-meta">${s.date} · ${s.time} · ${formatHM(s.elapsed)}</div>
+        </div>
+        <span class="si-badge">${s.completed ? '✔ Done' : 'Partial'}</span>
+      </div>`).join('');
+  }
+
+  function formatHMS(s) {
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    return [h,m,sec].map(v=>String(v).padStart(2,'0')).join(':');
+  }
+  function formatHM(s) {
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+    return h>0?`${h}h ${m}m`:`${m}m`;
+  }
+
+  // ── Boot ──
+  initFirebase();
+  renderHistory();
+</script>
+</body>
+</html>
